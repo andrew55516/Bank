@@ -8,9 +8,11 @@ import (
 	"time"
 )
 
+var account Account
+
 func createRandomEntry(t *testing.T) Entry {
 	arg := CreateEntryParams{
-		AccountID: 1,
+		AccountID: account.ID,
 		Amount:    util.RandomMoney(),
 	}
 
@@ -25,10 +27,12 @@ func createRandomEntry(t *testing.T) Entry {
 }
 
 func TestQueries_CreateEntry(t *testing.T) {
+	account = createRandomAccount(t)
 	createRandomEntry(t)
 }
 
 func TestQueries_GetEntry(t *testing.T) {
+	account = createRandomAccount(t)
 	entry1 := createRandomEntry(t)
 	entry2, err := testQueries.GetEntry(context.Background(), entry1.ID)
 
@@ -41,12 +45,13 @@ func TestQueries_GetEntry(t *testing.T) {
 }
 
 func TestQueries_ListEntries(t *testing.T) {
+	account = createRandomAccount(t)
 	for i := 0; i < 10; i++ {
 		createRandomEntry(t)
 	}
 
 	arg := ListEntriesParams{
-		AccountID: 1,
+		AccountID: account.ID,
 		Limit:     5,
 		Offset:    5,
 	}
