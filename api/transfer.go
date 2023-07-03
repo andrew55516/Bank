@@ -2,6 +2,7 @@ package api
 
 import (
 	db "Bank/db/sqlc"
+	"Bank/token"
 	"database/sql"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,20 @@ func (s *Server) createTransfer(c *gin.Context) {
 		Amount:        req.Amount,
 	}
 
-	if !s.validCurrency(c, req.FromAccountID, req.Currency) || !s.validCurrency(c, req.ToAccountID, req.Currency) {
+	fromAccount, valid := s.validAccount(c, req.FromAccountID, req.Currency)
+	if !valid {
+		return
+	}
+
+	authPayload := c.MustGet(authorizationPayloadKey).(*token.Payload)
+	if fromAccount.Owner != authPayload.Username {
+		err := fmt.Errorf("account [%d] does not belong to user [%s]", req.FromAccountID, authPayload.Username)
+		c.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
+	}
+
+	_, valid = s.validAccount(c, req.ToAccountID, req.Currency)
+	if !valid {
 		return
 	}
 
@@ -45,25 +59,25 @@ func (s *Server) createTransfer(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (s *Server) validCurrency(c *gin.Context, accountID int64, currency string) bool {
+func (s *Server) validAccount(c *gin.Context, accountID int64, currency string) (db.Account, bool) {
 	account, err := s.store.GetAccount(c, accountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, errorResponse(err))
-			return false
+			return account, false
 		}
 
 		c.JSON(http.StatusInternalServerError, errorResponse(err))
-		return false
+		return account, false
 	}
 
 	if account.Currency != currency {
 		err := fmt.Errorf("account [%d] currency mismatch: %s vs %s", accountID, account.Currency, currency)
 		c.JSON(http.StatusBadRequest, errorResponse(err))
-		return false
+		return account, false
 	}
 
-	return true
+	return account, true
 }
 
 func (s *Server) validAmount(c *gin.Context, accountID int64, amount int64) bool {
